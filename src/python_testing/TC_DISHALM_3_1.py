@@ -23,8 +23,7 @@ from mobly import asserts
 
 logger = logging.getLogger(__name__)
 
-
-class TC_DISHALM_3_1(MatterBaseTest):
+class TC_DISHALM_3(MatterBaseTest):
 
     async def read_da_attribute_expect_success(self, endpoint, attribute):
         cluster = Clusters.Objects.DishwasherAlarm
@@ -50,12 +49,42 @@ class TC_DISHALM_3_1(MatterBaseTest):
         return ret
 
     @async_test_body
-    async def test_TC_DISHALM_3_1(self):
+    async def test_TC_DISHALM_3(self):
+
+        asserts.assert_true('ALARM_MAP' in self.matter_test_config.global_test_params,
+                            "ALARM_MAP must be included on the command line in "
+                            "the --hex-arg flag as ALARM_MAP:<alarm>; "
+                            "Inflow Alarm -> 0x1, "
+                            "Drain Alarm -> 0x2, "
+                            "Temp Too Low Alarm -> 0x4, "
+                            "Temp Too High Alarm -> 0x8, "
+                            "Water Level Alarm -> 0x20")
+        
+        alarm_type = self.matter_test_config.global_test_params['ALARM_MAP']
 
         endpoint = self.user_params.get("endpoint", 1)
 
         asserts.assert_true(self.check_pics("DISHALM.S.A0001"), "DISHALM.S.A0001 must be supported")
         asserts.assert_true(self.check_pics("DISHALM.S.A0002"), "DISHALM.S.A0002 must be supported")
+
+        if alarm_type == 0x1:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError
+            state_bit = 0
+        elif alarm_type == 0x2:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kDrainError
+            state_bit = 1
+        elif alarm_type == 0x4:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kDoorError
+            state_bit = 2
+        elif alarm_type == 0x8:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kTempTooLow
+            state_bit = 3
+        elif alarm_type == 0x10:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kTempTooHigh
+            state_bit = 4
+        elif alarm_type == 0x20:
+            alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kWaterLevelError
+            state_bit = 5
 
         self.print_step("1a", "Commissioning, already done")
 
@@ -71,14 +100,14 @@ class TC_DISHALM_3_1(MatterBaseTest):
         logging.info("Notify: %s" % (notify))
         logging.info("Notify State: %s" % (notify_state))
 
-        asserts.assert_true(notify_state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError, "State bit 0 is not set to TRUE")
+        asserts.assert_true(notify_state & alarm, "State bit %d is not set to TRUE" % state_bit)
 
         self.print_step("2b", "After a few seconds, read from the DUT the State Attribute")
         state = self.read_state_attribute(endpoint=endpoint)
 
         logging.info("State: %s" % (state))
 
-        asserts.assert_true(state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError, "Bit 0 of State is not set to 1")
+        asserts.assert_true(state & alarm, "Bit %d of State is not set to 1" % state_bit)
 
         self.print_step("2c", "Operate Device to set the condition to lower the Inflow alarm and wait a few seconds")
         input("Press Enter when done.\n")
@@ -93,8 +122,8 @@ class TC_DISHALM_3_1(MatterBaseTest):
         logging.info("Latch: %s" % (latch))
 
         if latch == 0:
-            asserts.assert_false(notify_state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError,
-                                 "State bit 0 is not set to FALSE")
+            asserts.assert_false(notify_state & alarm,
+                                 "State bit %d is not set to FALSE" % state_bit)
 
         self.print_step("2d", "After a few seconds, read from the DUT the State Attribute")
         state = self.read_state_attribute(endpoint=endpoint)
@@ -102,12 +131,11 @@ class TC_DISHALM_3_1(MatterBaseTest):
         logging.info("State: %s" % (state))
 
         if latch == 0:
-            asserts.assert_false(state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError, "Bit 0 of State is not set to 0")
+            asserts.assert_false(state & alarm, "Bit %d of State is not set to 0" % state_bit)
         elif latch == 1:
-            asserts.assert_true(state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError, "Bit 0 of State is not set to 1")
+            asserts.assert_true(state & alarm, "Bit %d of State is not set to 1" % state_bit)
 
         self.print_step("3a", "Send to the DUT the Reset Command with bit 0 of Alarms set to 1")
-        alarm = Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError
 
         await self.send_reset_cmd(setAlarm=alarm)
 
@@ -121,15 +149,15 @@ class TC_DISHALM_3_1(MatterBaseTest):
         logging.info("Latch: %s" % (latch))
 
         if latch == 1:
-            asserts.assert_false(notify_state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError,
-                                 "State bit 0 is not set to FALSE")
+            asserts.assert_false(notify_state & alarm,
+                                 "State bit %d is not set to FALSE" % state_bit)
 
         self.print_step("3b", "After a few seconds, read from the DUT the State Attribute")
         state = self.read_state_attribute(endpoint=endpoint)
 
         logging.info("State: %s" % (state))
 
-        asserts.assert_false(state & Clusters.DishwasherAlarm.Bitmaps.AlarmMap.kInflowError, "Bit 0 of State is not set to 0")
+        asserts.assert_false(state & alarm, "Bit %d of State is not set to 0" % state_bit)
 
 
 if __name__ == "__main__":
